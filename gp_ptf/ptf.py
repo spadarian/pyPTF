@@ -1,10 +1,12 @@
 import numpy as np
 from scipy.stats import linregress
 from gplearn.genetic import SymbolicRegressor
+from .symb_functions import add, sub, mul, div
+from sympy import symbols, simplify, latex, Float, preorder_traversal
 
 
 class PTF(object):
-    def __init__(self, data, formula, sym_kwargs={}):
+    def __init__(self, data, formula, sym_kwargs={}, simplify=True):
         self.data = data
         self.cleaned_data = None
         self.formula = formula
@@ -16,6 +18,8 @@ class PTF(object):
         self.init_gp(sym_kwargs)
         self.stats = {}
         self.trained = False
+        self.simplify = simplify
+        self.symb = None
 
     def parse_formula(self):
         y, xs = self.formula.split('~')
@@ -66,3 +70,45 @@ class PTF(object):
             'RMSE': rmse
         }
         self.stats = stats
+
+        self.init_symb()
+
+    def predict(self, X):
+        filtered = X[self.xs]
+        pred = self.gp_estimator._program.execute(filtered.values)
+        return pred
+
+    def init_symb(self):
+        for i, sym in enumerate(self.xs):
+            exec("X{} = symbols('{}')".format(i, sym))
+
+        ptf = eval(str(self.gp_estimator._program))
+        if self.simplify:
+            ptf = simplify(ptf)
+        self.symb = ptf
+
+    def to_latex(self):
+        if self.symb:
+            text = latex(self.symb)
+        else:
+            text = ''
+        return text
+
+    def __repr__(self):
+            main_repr = '<{}({}): {{}}>'.format(self.__class__.__name__,
+                                                self.formula)
+            if self.symb is None:
+                repr_ = main_repr.format('Not trained')
+            else:
+                # Round floats
+                decimals = 3
+                exp2 = self.symb
+                for e in preorder_traversal(self.symb):
+                    if isinstance(e, Float):
+                        exp2 = exp2.subs(e, round(e, decimals))
+
+                symb = str(exp2)
+                if len(symb) > 23:
+                    symb = symb[:20] + '...'
+                repr_ = main_repr.format(symb)
+            return repr_
