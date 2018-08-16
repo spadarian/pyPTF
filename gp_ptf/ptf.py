@@ -6,7 +6,7 @@ from gplearn.genetic import SymbolicRegressor
 class PTF(object):
     def __init__(self, data, formula, sym_kwargs={}):
         self.data = data
-        self.clean_data = None
+        self.cleaned_data = None
         self.formula = formula
         self.xs = []
         self.y = None
@@ -30,7 +30,7 @@ class PTF(object):
         self.y = y
 
     def clean_data(self):
-        self.clean_data = self.data[self.xs + [self.y]].dropna()
+        self.cleaned_data = self.data[self.xs + [self.y]].dropna()
 
     def init_gp(self, sym_kwargs):
         default_params = {
@@ -52,8 +52,8 @@ class PTF(object):
         self.gp_estimator = est_gp
 
     def fit(self):
-        X = self.clean_data[self.xs]
-        Y = self.clean_data[self.y]
+        X = self.cleaned_data[self.xs]
+        Y = self.cleaned_data[self.y]
         self.gp_estimator.fit(X, Y)
         self.trained = True
 
