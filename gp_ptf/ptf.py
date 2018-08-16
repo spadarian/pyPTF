@@ -6,6 +6,42 @@ from sympy import symbols, simplify, latex, Float, preorder_traversal
 
 
 class PTF(object):
+    """Pedotrasfer function using Symbolic Regression (Genetic Algorithms).
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame with the data to train the PTF.
+    formula : str
+        Formula in the format 'y~x1+x2'. The variable names should be included
+        in `data`. Use 'y~.' to select all the columns (expect `y`) as predictors.
+    sym_kwargs : dict
+        Extra arguments for the gplearn.genetic.SymbolicRegressor (the default is {}).
+    simplify : bool
+        Simplify the final PTF (the default is True).
+
+    Attributes
+    ----------
+    cleaned_data : pd.DataFrame
+        Subset of `data` only using the selected columns (`xs` and `y`).
+        The rows containing NAs are dropped.
+    xs : list
+        Name of the independant variables.
+    y : str
+        Name of the dependant variables.
+    gp_estimator : gplearn.genetic.SymbolicRegressor
+        Instance of SymbolicRegressor.
+    stats : dict
+        Training statistics (R2, RMSE).
+    trained : bool
+        If `gp_estimator` has been trained or not.
+    symb : sympy.core.mul.Mul
+        PTF as a sympy expression.
+    data
+    formula
+    simplify
+
+    """
     def __init__(self, data, formula, sym_kwargs={}, simplify=True):
         self.data = data
         self.cleaned_data = None
@@ -74,6 +110,19 @@ class PTF(object):
         self.init_symb()
 
     def predict(self, X):
+        """Predict target variable.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            DataFrame to predict. It should contain the columns `xs`.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted values.
+
+        """
         filtered = X[self.xs]
         pred = self.gp_estimator._program.execute(filtered.values)
         return pred
