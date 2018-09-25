@@ -1,12 +1,24 @@
 import numpy as np
-from scipy.spatial.distance import mahalanobis, euclidean
+
+
+def mahalanobis(data, centroids, W):
+    dist = []
+    for c in centroids:
+        c_rep = np.repeat([c], data.shape[0], 0)
+        Dc = c_rep - data
+        dist.append((np.matmul(Dc, W) * Dc).sum(1))
+    return np.transpose(dist)
+
+
+def euclidean(data, centroids):
+    return np.sqrt(np.power([data - np.repeat([c], data.shape[0], 0) for c in centroids], 2).sum(2)).T
 
 
 def calc_dist(data, centroids, W, disttype):
     if (disttype == 1):  # Euclidean
-        dist = np.sqrt(np.array([[euclidean(r, c) for c in centroids] for r in data]))
+        dist = euclidean(data, centroids)
     else:  # Diagonal and Mahalanobis
-        dist = np.sqrt(np.array([[mahalanobis(r, c, W) for c in centroids] for r in data]))
+        dist = mahalanobis(data, centroids, W)
     return dist
 
 
@@ -107,12 +119,96 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
 
     #   dist_centroids = mahaldist(centroids)
 
-    def conf(x):
-        x_sorted = sorted(x, reverse=True)
-        return x_sorted[1] / x_sorted[0]
-
-    CI = np.apply_along_axis(conf, 1, U_end)
+    # def conf(x):
+    #     x_sorted = sorted(x, reverse=True)
+    #     return x_sorted[1] / x_sorted[0]
+    #
+    # CI = np.apply_along_axis(conf, 1, U_end)
 
     if optim:
         return np.abs(Ue_mean - Ue_req)
     return [U_end, centroids, W]
+
+
+class FKMEx(object):
+    def __init__(self, nclass, phi, disttype, exp_eg=None, maxiter=300,
+                 toldif=0.001):
+        self.phi = phi
+        self.nclass = nclass
+        self.disttype = disttype
+        self.exp_eg = exp_eg
+        self.maxiter = maxiter
+        self.toldif = toldif
+        self.centroids = None
+        self.U = None
+        self.W = None
+        self.alpha = None
+        self.fitted = False
+
+    def fit(self, data, min_alpha=None, **kwargs):
+        from gp_ptf.optim import optim_alpha
+        alpha = optim_alpha(data,
+                            self.phi,
+                            self.nclass,
+                            self.disttype,
+                            min_alpha=min_alpha,
+                            **kwargs)
+        U, centroids, W = fuzzy_extragrades(data, alpha, self.phi,
+                                            self.nclass, self.disttype,
+                                            optim=False, **kwargs)
+        self.centroids = centroids
+        self.U = U
+        self.W = W
+        self.alpha = alpha
+        self.fitted = True
+
+    @property
+    def hard_clusters(self):
+        if self.fitted:
+            ks = self.U.argmax(1) + 1
+            eg = ks.max()
+            ks = ks.astype('str')
+            ks[ks == str(eg)] = 'Eg'
+            return ks
+
+    def prediction_limits(self, y_true, y_pred, conf=0.95):
+        hard = self.hard_clusters
+        ks = np.unique(hard)
+        alpha = 1 - conf
+        perc = []
+        for k in ks:
+            logic = hard == k
+            k_pred = y_pred[logic]
+            k_obs = y_true[logic]
+            res = k_obs - k_pred
+            perc.append(np.percentile(res, [alpha / 2, 1 - (alpha / 2)]))
+        perc = np.array(perc)
+        perc[-1] *= 2
+        perc
+        PI = np.matmul(self.U, perc)
+        PL = PI + y_pred.reshape(-1, 1)
+        return PL
+
+    def PICP(self, y_true, y_pred, conf=0.95):
+        PL = self.prediction_limits(y_true, y_pred, conf=0.95)
+        PICP_count = np.bitwise_and(y_true >= PL[:, 0], y_true <= PL[:, 1])
+        PICP = 100 * PICP_count.sum() / len(y_true)
+        return PICP
+
+    def MPI(self, y_true, y_pred, conf=0.95):
+        PL = self.prediction_limits(y_true, y_pred, conf=0.95)
+        MPI = (PL[:, 1] - PL[:, 0]).sum() / len(y_true)
+        return MPI
+
+    def __repr__(self):
+        main_str = 'classes={} phi={} dist={}'.format(self.nclass,
+                                                      self.phi,
+                                                      self.disttype)
+        if self.fitted:
+            fitted = '(fitted) '
+        else:
+            fitted = ''
+        rep = '<{} {}{}>'.format(self.__class__.__name__,
+                                 fitted,
+                                 main_str)
+        return rep
