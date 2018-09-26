@@ -1,6 +1,10 @@
+import logging
+
 import numpy as np
 
 from gp_ptf.ptf import PTF
+
+logger = logging.getLogger(__name__)
 
 
 def mahalanobis(data, centroids, W):
@@ -140,7 +144,7 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
 
 class FKMEx(object):
     def __init__(self, nclass, phi, disttype, exp_eg=None, maxiter=300,
-                 toldif=0.001):
+                 toldif=0.001, alpha=None):
         self.phi = phi
         self.nclass = nclass
         self.disttype = disttype
@@ -150,22 +154,27 @@ class FKMEx(object):
         self.centroids = None
         self.U = None
         self.W = None
-        self.alpha = None
+        self.alpha = alpha
         self.fitted = False
 
     def fit(self, data, min_alpha=None, **kwargs):
-        from gp_ptf.optim import optim_alpha
         if isinstance(data, PTF):
             try:
                 data = data.cleaned_data[data.xs].values
             except Exception:
                 raise Exception('There was a problem trying to use the provided PTF')
-        alpha = optim_alpha(data,
-                            self.phi,
-                            self.nclass,
-                            self.disttype,
-                            min_alpha=min_alpha,
-                            **kwargs)
+        if self.alpha is None:
+            from gp_ptf.optim import optim_alpha
+            alpha = optim_alpha(data,
+                                self.phi,
+                                self.nclass,
+                                self.disttype,
+                                min_alpha=min_alpha,
+                                **kwargs)
+        else:
+            alpha = self.alpha
+            logger.info('Skipping alpha optimisation')
+            logger.info('Using provided alpha: {}'.format(alpha))
         U, centroids, W = fuzzy_extragrades(data, alpha, self.phi,
                                             self.nclass, self.disttype,
                                             optim=False, **kwargs)
