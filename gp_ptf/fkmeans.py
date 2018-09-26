@@ -1,5 +1,7 @@
 import numpy as np
 
+from gp_ptf.ptf import PTF
+
 
 def mahalanobis(data, centroids, W):
     dist = []
@@ -29,6 +31,19 @@ def update_centroids(uphi, uephi, a1, dist, data):
     t1 = np.repeat([t1], data.shape[1], 0).T
     centroids = c1 / t1
     return centroids
+
+
+def calc_membership(dist, phi, a1):
+    nclass = dist.shape[1]
+    tmp = dist ** (-2 / (phi - 1))
+    tm2 = dist ** (-2)
+    s2 = (a1 * tm2.sum(1)) ** (-1 / (phi - 1))
+
+    t1 = tmp.sum(1)
+    t2 = np.repeat([t1], nclass, 0).T + np.repeat([s2], nclass, 0).T
+    U = tmp / t2
+    Ue = 1 - np.round(U.sum(1), 15)
+    return U, Ue
 
 
 def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
@@ -81,14 +96,7 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
         obj_old = obj
 
         # Calculate new membership matrix
-        tmp = dist ** (-2 / (phi - 1))
-        tm2 = dist ** (-2)
-        s2 = (a1 * tm2.sum(1)) ** (-1 / (phi - 1))
-
-        t1 = tmp.sum(1)
-        t2 = np.repeat([t1], nclass, 0).T + np.repeat([s2], nclass, 0).T
-        U = tmp / t2
-        Ue = 1 - np.round(U.sum(1), 15)
+        U, Ue = calc_membership(dist, phi, a1)
         uphi = U ** phi
         uephi = Ue ** phi
 
@@ -147,6 +155,11 @@ class FKMEx(object):
 
     def fit(self, data, min_alpha=None, **kwargs):
         from gp_ptf.optim import optim_alpha
+        if isinstance(data, PTF):
+            try:
+                data = data.cleaned_data[data.xs].values
+            except Exception:
+                raise Exception('There was a problem trying to use the provided PTF')
         alpha = optim_alpha(data,
                             self.phi,
                             self.nclass,
@@ -162,6 +175,17 @@ class FKMEx(object):
         self.alpha = alpha
         self.fitted = True
 
+    def dist(self, data):
+        if self.fitted:
+            return calc_dist(data, self.centroids, self.W, self.disttype)
+
+    def membership(self, data):
+        if self.fitted:
+            dist = self.dist(data)
+            a1 = (1 - self.alpha) / self.alpha
+            U, Ue = calc_membership(dist, self.phi, a1)
+            return np.concatenate([U, Ue.reshape(-1, 1)], 1)
+
     @property
     def hard_clusters(self):
         if self.fitted:
@@ -171,32 +195,35 @@ class FKMEx(object):
             ks[ks == str(eg)] = 'Eg'
             return ks
 
-    def prediction_limits(self, y_true, y_pred, conf=0.95):
+    def PIC(self, y_true, y_pred, conf=0.95):
         hard = self.hard_clusters
         ks = np.unique(hard)
-        alpha = 1 - conf
+        alpha = 100 - conf * 100
         perc = []
         for k in ks:
             logic = hard == k
             k_pred = y_pred[logic]
             k_obs = y_true[logic]
             res = k_obs - k_pred
-            perc.append(np.percentile(res, [alpha / 2, 1 - (alpha / 2)]))
+            perc.append(np.percentile(res, [alpha / 2, 100 - (alpha / 2)]))
         perc = np.array(perc)
         perc[-1] *= 2
-        perc
+        return perc
+
+    def prediction_limits(self, y_true, y_pred, conf=0.95):
+        perc = self.PIC(y_true, y_pred, conf)
         PI = np.matmul(self.U, perc)
         PL = PI + y_pred.reshape(-1, 1)
         return PL
 
     def PICP(self, y_true, y_pred, conf=0.95):
-        PL = self.prediction_limits(y_true, y_pred, conf=0.95)
+        PL = self.prediction_limits(y_true, y_pred, conf)
         PICP_count = np.bitwise_and(y_true >= PL[:, 0], y_true <= PL[:, 1])
         PICP = 100 * PICP_count.sum() / len(y_true)
         return PICP
 
     def MPI(self, y_true, y_pred, conf=0.95):
-        PL = self.prediction_limits(y_true, y_pred, conf=0.95)
+        PL = self.prediction_limits(y_true, y_pred, conf)
         MPI = (PL[:, 1] - PL[:, 0]).sum() / len(y_true)
         return MPI
 

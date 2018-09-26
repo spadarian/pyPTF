@@ -1,8 +1,13 @@
+import logging
+
 import numpy as np
 from scipy.stats import linregress
 from gplearn.genetic import SymbolicRegressor
-from .symb_functions import add, sub, mul, div
 from sympy import symbols, simplify, latex, Float, preorder_traversal
+
+from gp_ptf.symb_functions import add, sub, mul, div
+
+logger = logging.getLogger(__name__)
 
 
 class PTF(object):
@@ -56,6 +61,7 @@ class PTF(object):
         self.trained = False
         self.simplify = simplify
         self.symb = None
+        self.uncertainty = None
 
     def parse_formula(self):
         y, xs = self.formula.split('~')
@@ -125,6 +131,10 @@ class PTF(object):
         """
         filtered = X[self.xs]
         pred = self.gp_estimator._program.execute(filtered.values)
+        if self.uncertainty:
+            m = self.uncertainty.membership(filtered)
+            PL = np.matmul(m, self.PIC) + pred.reshape(-1, 1)
+            pred = np.array([PL[:, 0], pred, PL[:, 1]]).T
         return pred
 
     def init_symb(self):
@@ -161,3 +171,23 @@ class PTF(object):
                     symb = symb[:20] + '...'
                 repr_ = main_repr.format(symb)
             return repr_
+
+    def add_uncertainty(self, fkme, conf=0.95):
+        try:
+            obs = self.cleaned_data[self.y].values
+            pred = self.predict(self.cleaned_data)
+            # uncertainty = {
+            #     'PIC': fkme.PIC(obs, pred),
+            #     'centroids': fkme.centroids,
+            #     'W': fkme.W,
+            #     'disttype': fkme.disttype,
+            #     'phi': fkme.phi,
+            #     'alpha': fkme.alpha,
+            # }
+            self.uncertainty = fkme
+            self.PIC = fkme.PIC(obs, pred, conf)
+            self.MPI = fkme.MPI(obs, pred, conf)
+            self.PICP = fkme.PICP(obs, pred, conf)
+            logger.info('Uncertainty info successfully added to the PTF')
+        except Exception:
+            pass

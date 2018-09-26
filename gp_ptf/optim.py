@@ -7,7 +7,6 @@ import pygmo as pg
 from gp_ptf.fkmeans import fuzzy_extragrades
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class PTFOptim(object):
