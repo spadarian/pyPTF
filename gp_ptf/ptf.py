@@ -58,8 +58,19 @@ class PTF(object):
         self.stats = {}
         self.trained = False
         self.simplify = simplify
-        self.symb = None
         self.uncertainty = None
+        self.ptf = None
+
+    @property
+    def ptf(self):
+        return self.__ptf
+
+    @ptf.setter
+    def ptf(self, program):
+        ptf = self.to_symb(program)
+        if self.simplify:
+            ptf = simplify(ptf)
+        self.__ptf = ptf
 
     def parse_formula(self):
         y, xs = self.formula.split('~')
@@ -166,11 +177,11 @@ class PTF(object):
         ptf = self.to_symb(self.gp_estimator._program)
         if self.simplify:
             ptf = simplify(ptf)
-        self.symb = ptf
+        self.ptf = self.gp_estimator._program
 
     def to_latex(self):
-        if self.symb:
-            text = latex(self.symb)
+        if self.ptf:
+            text = latex(self.ptf)
         else:
             text = ''
         return text
@@ -178,13 +189,13 @@ class PTF(object):
     def __repr__(self):
             main_repr = '<{}({}): {{}}>'.format(self.__class__.__name__,
                                                 self.formula)
-            if self.symb is None:
+            if self.ptf is None:
                 repr_ = main_repr.format('Not trained')
             else:
                 # Round floats
                 decimals = 3
-                exp2 = self.symb
-                for e in preorder_traversal(self.symb):
+                exp2 = self.ptf
+                for e in preorder_traversal(self.ptf):
                     if isinstance(e, Float):
                         exp2 = exp2.subs(e, round(e, decimals))
 
