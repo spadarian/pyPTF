@@ -5,8 +5,6 @@ from scipy.stats import linregress
 from gplearn.genetic import SymbolicRegressor
 from sympy import symbols, simplify, latex, Float, preorder_traversal
 
-from gp_ptf.symb_functions import add, sub, mul, div
-
 logger = logging.getLogger(__name__)
 
 
@@ -114,6 +112,7 @@ class PTF(object):
         self.stats = stats
 
         self.init_symb()
+        return self
 
     def predict(self, X):
         """Predict target variable.
@@ -137,11 +136,34 @@ class PTF(object):
             pred = np.array([PL[:, 0], pred, PL[:, 1]]).T
         return pred
 
-    def init_symb(self):
-        for i, sym in enumerate(self.xs):
-            exec("X{} = symbols('{}')".format(i, sym))
+    def to_symb(self, program):
+        from gp_ptf.symb_functions import div, sub, add, inv
+        # from sympy import add, mul, sqrt
+        # add = add.Add
+        # mul = mul.Mul
+        from sympy import sin, cos, tan
+        from sympy import Abs as abs
+        from sympy import Max as max
+        from sympy import Min as min
+        from sympy import Mul as mul
+        neg = np.negative
 
-        ptf = eval(str(self.gp_estimator._program))
+        expressions = ["X{} = symbols('{}')".format(i, sym)
+                       for i, sym in enumerate(self.xs)
+                       if 'X{}'.format(i) in str(program)]
+        for ex in expressions:
+            exec(ex)
+
+        ptf = eval(str(program))
+        return ptf
+
+    def simplify_program(self, program):
+        ptf = self.to_symb(program)
+        ptf = simplify(ptf)
+        return ptf
+
+    def init_symb(self):
+        ptf = self.to_symb(self.gp_estimator._program)
         if self.simplify:
             ptf = simplify(ptf)
         self.symb = ptf

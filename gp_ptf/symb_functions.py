@@ -1,3 +1,6 @@
+from sympy import Mul, Pow
+
+
 def add(a, b):
     return a + b
 
@@ -7,8 +10,8 @@ def sub(a, b):
 
 
 def div(a, b):
-    return a / b
+    return Mul(a, Pow(b, -1))
 
 
-def mul(a, b):
-    return a * b
+def inv(a):
+    return Pow(a, -1)
