@@ -109,7 +109,16 @@ class PTF(object):
     def fit(self):
         X = self.cleaned_data[self.xs]
         Y = self.cleaned_data[self.y]
-        self.gp_estimator.fit(X, Y)
+        try:
+            self.gp_estimator.fit(X, Y)
+        except KeyboardInterrupt:
+            last_programs = self.gp_estimator._programs[-1]
+            with_fitness = [(x.raw_fitness_, x) for x in last_programs]
+            with_fitness.sort(key=lambda x: x[0])
+            self.ptf = with_fitness[0][1]
+            self.gp_estimator._program = with_fitness[0][1]
+            msg = 'Training stoped at generation {}'.format(len(self.gp_estimator._programs) - 1)
+            logger.warning(msg)
         self.trained = True
 
         pred = self.gp_estimator._program.execute(X.values)
