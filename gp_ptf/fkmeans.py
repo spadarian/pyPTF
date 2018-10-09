@@ -46,8 +46,8 @@ def calc_membership(dist, phi, a1):
     t1 = tmp.sum(1)
     t2 = np.repeat([t1], nclass, 0).T + np.repeat([s2], nclass, 0).T
     U = tmp / t2
-    Ue = 1 - np.round(U.sum(1), 15)
-    return U, Ue
+    Ue = 1 - U.sum(1)
+    return np.abs(U), np.abs(Ue)
 
 
 def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
@@ -61,7 +61,7 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
     dist = np.zeros((ndata, nclass))
 
     U = np.random.normal(0.5, 0.01, (ndata, nclass))
-    U = U / U.sum(1).reshape(-1, 1)
+    U = np.abs(U / U.sum(1).reshape(-1, 1))
 
     if (disttype == 1):
         W = np.identity(ndim)
@@ -75,7 +75,7 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
 
     obj = 0
 
-    Ue = 1 - np.round(U.sum(1), 15)
+    Ue = np.abs(1 - U.sum(1))
     uphi = U ** phi
     uephi = Ue ** phi
     a1 = (1 - alpha) / alpha
@@ -183,6 +183,7 @@ class FKMEx(object):
         self.W = W
         self.alpha = alpha
         self.fitted = True
+        return self
 
     def dist(self, data):
         if self.fitted:
