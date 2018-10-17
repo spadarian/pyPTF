@@ -157,10 +157,8 @@ class PTF(object):
         return pred
 
     def to_symb(self, program):
+        # TODO: Find a better way to do this
         from gp_ptf.symb_functions import div, sub, add, inv
-        # from sympy import add, mul, sqrt
-        # add = add.Add
-        # mul = mul.Mul
         from sympy import sin, cos, tan
         from sympy import Abs as abs
         from sympy import Max as max
@@ -217,15 +215,9 @@ class PTF(object):
     def add_uncertainty(self, fkme, conf=0.95):
         try:
             obs = self.cleaned_data[self.y].values
+            if self.uncertainty is not None:
+                self.uncertainty = None
             pred = self.predict(self.cleaned_data)
-            # uncertainty = {
-            #     'PIC': fkme.PIC(obs, pred),
-            #     'centroids': fkme.centroids,
-            #     'W': fkme.W,
-            #     'disttype': fkme.disttype,
-            #     'phi': fkme.phi,
-            #     'alpha': fkme.alpha,
-            # }
             self.uncertainty = fkme
             self.PIC = fkme.PIC(obs, pred, conf)
             self.MPI = fkme.MPI(obs, pred, conf)
