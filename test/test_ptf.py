@@ -2,10 +2,10 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from gp_ptf.ptf import PTF
-from gp_ptf.symb_functions import add, sub, inv, div
-from gp_ptf.fkmeans import FKMEx
-from gp_ptf.utils import summary
+from pyPTF.ptf import PTF
+from pyPTF.symb_functions import add, sub, inv, div
+from pyPTF.fkmeans import FKMEx
+from pyPTF.utils import summary
 
 latex_lines = ['\\begin{tabular}{ccccc}',
                '\\toprule',

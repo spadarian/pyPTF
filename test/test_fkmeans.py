@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from gp_ptf.fkmeans import _calc_dist, _calc_membership, _update_centroids, FKMEx
+from pyPTF.fkmeans import _calc_dist, _calc_membership, _update_centroids, FKMEx
 
 d = np.array([[0, 2], [1, 1], [2.5, 0]])
 dist_euc = np.array([

@@ -1,4 +1,4 @@
-from gp_ptf.datasets import load_water
+from pyPTF.datasets import load_water
 
 
 def test_load_water():
