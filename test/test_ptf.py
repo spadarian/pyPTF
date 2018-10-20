@@ -5,6 +5,19 @@ import pandas as pd
 from gp_ptf.ptf import PTF
 from gp_ptf.symb_functions import add, sub, inv, div
 from gp_ptf.fkmeans import FKMEx
+from gp_ptf.utils import summary
+
+latex_lines = ['\\begin{tabular}{ccccc}',
+               '\\toprule',
+               '{} & x & z & PI_{L} & PI_{U} \\\\',
+               '\\midrule',
+               'Clusters & \\multicolumn{2}{c}{Centroids} & \\multicolumn{2}{c}{Cluster residuals} \\\\',
+               '\\cmidrule(rl){2-3} \\cmidrule(rl){4-5}',
+               '1 & 3.02 & 1.98 & 0.00 & 0.00 \\\\',
+               '2 & 4.00 & 1.00 & 0.00 & 0.00 \\\\',
+               'Eg & -- & -- & 0.00 & 0.00 \\\\',
+               '\\bottomrule',
+               '\\end{tabular}']
 
 x = np.array([1, 2, 3, 4])
 y = x ** 2
@@ -40,6 +53,10 @@ def test_integration():
     k2.fit(test_ptf)
     test_ptf.add_uncertainty(k2)
     assert test_ptf.predict(d).sum() == 90.0
+
+    per_char = [a == b for a, b in zip([x for x in summary(test_ptf)],
+                                       [x for x in '\n'.join(latex_lines)])]
+    assert np.sum(per_char) / len(per_char) > 0.95
 
     assert test_ptf.to_latex() == 'x^{2}'
     assert str(test_ptf.simplify_program(test_ptf.gp_estimator._program)) == 'x**2'
