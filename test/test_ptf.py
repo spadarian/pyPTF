@@ -1,11 +1,13 @@
 import pytest
 import numpy as np
 import pandas as pd
+import pygmo as pg
 
 from pyPTF.ptf import PTF
 from pyPTF.symb_functions import add, sub, inv, div
 from pyPTF.fkmeans import FKMEx
 from pyPTF.utils import summary
+from pyPTF.optim import PTFOptim
 
 latex_lines = ['\\begin{tabular}{ccccc}',
                '\\toprule',
@@ -48,8 +50,8 @@ def test_integration():
     assert repr(test_ptf) == '<PTF(y~x+z): x**2>'
     assert all(test_ptf.predict(d) == y)
 
-    # k2 = FKMEx(2, 1.5, 'mahalanobis', alpha=0.755067750159772)
-    k2 = FKMEx(2, 1.5, 'mahalanobis')
+    k2 = FKMEx(2, 1.5, 'mahalanobis', alpha=0.755067750159772)
+    # k2 = FKMEx(2, 1.5, 'mahalanobis')  # Can't run this with setup.py test
     k2.fit(test_ptf)
     test_ptf.add_uncertainty(k2)
     assert test_ptf.predict(d).sum() == 90.0
