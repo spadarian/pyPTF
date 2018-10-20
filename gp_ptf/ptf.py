@@ -1,8 +1,11 @@
+"""Module to generate a pedotransfer functions."""
+
 import logging
 
 import numpy as np
 from scipy.stats import linregress
 from gplearn.genetic import SymbolicRegressor
+from gplearn._program import _Program
 from sympy import symbols, simplify, latex, Float, preorder_traversal
 
 logger = logging.getLogger(__name__)
@@ -35,10 +38,12 @@ class PTF(object):
     gp_estimator : gplearn.genetic.SymbolicRegressor
         Instance of SymbolicRegressor.
     stats : dict
-        Training statistics (R2, RMSE).
+        Training statistics (R², RMSE).
     trained : bool
         If `gp_estimator` has been trained or not.
-    symb : sympy.core.mul.Mul
+    uncertainty : {None, gplearn._program._Program}
+        Uncertainty information. It should be added using the :func:`~PTF.add_uncertainty` method.
+    ptf :
         PTF as a sympy expression.
     data
     formula
@@ -51,10 +56,10 @@ class PTF(object):
         self.formula = formula
         self.xs = []
         self.y = None
-        self.parse_formula()
-        self.clean_data()
+        self._parse_formula()
+        self._clean_data()
         self.gp_estimator = None
-        self.init_gp(sym_kwargs)
+        self._init_gp(sym_kwargs)
         self.stats = {}
         self.trained = False
         self.simplify = simplify
@@ -67,12 +72,15 @@ class PTF(object):
 
     @ptf.setter
     def ptf(self, program):
+        if self.trained:
+            assert isinstance(program, _Program), \
+                'The ptf should be a gplearn program'
         ptf = self.to_symb(program)
         if self.simplify:
             ptf = simplify(ptf)
         self.__ptf = ptf
 
-    def parse_formula(self):
+    def _parse_formula(self):
         y, xs = self.formula.split('~')
         y = y.strip()
         xs = xs.strip()
@@ -84,10 +92,10 @@ class PTF(object):
         self.xs = xs
         self.y = y
 
-    def clean_data(self):
+    def _clean_data(self):
         self.cleaned_data = self.data[self.xs + [self.y]].dropna()
 
-    def init_gp(self, sym_kwargs):
+    def _init_gp(self, sym_kwargs):
         default_params = {
             'population_size': 5000,
             'generations': 10,
@@ -131,7 +139,7 @@ class PTF(object):
         }
         self.stats = stats
 
-        self.init_symb()
+        self.ptf = self.gp_estimator._program
         return self
 
     def predict(self, X):
@@ -157,6 +165,7 @@ class PTF(object):
         return pred
 
     def to_symb(self, program):
+        """Convert a gplearn program to sympy expression."""
         # TODO: Find a better way to do this
         from gp_ptf.symb_functions import div, sub, add, inv
         from sympy import sin, cos, tan
@@ -176,21 +185,17 @@ class PTF(object):
         return ptf
 
     def simplify_program(self, program):
+        """Transform a glplearn program to sympy exmpression and simplify."""
         ptf = self.to_symb(program)
         ptf = simplify(ptf)
         return ptf
 
-    def init_symb(self):
-        ptf = self.to_symb(self.gp_estimator._program)
-        if self.simplify:
-            ptf = simplify(ptf)
-        self.ptf = self.gp_estimator._program
-
     def to_latex(self):
+        """Format the ptf formula as a LaTeX equation."""
         if self.ptf:
             text = latex(self.ptf)
         else:
-            text = ''
+            text = None
         return text
 
     def __repr__(self):
@@ -213,13 +218,23 @@ class PTF(object):
             return repr_
 
     def add_uncertainty(self, fkme, conf=0.95):
+        """Add uncertainty data from a :class:`~.fkmeans.FKMEx` object.
+
+        Parameters
+        ----------
+        fkme : :class:`~.fkmeans.FKMEx`
+            Fitted fuzzy k-means with extragrades class.
+        conf : float
+            Confidence level used when estimimating the prediction_interval (the default is 0.95).
+
+        """
         try:
             obs = self.cleaned_data[self.y].values
             if self.uncertainty is not None:
                 self.uncertainty = None
             pred = self.predict(self.cleaned_data)
             self.uncertainty = fkme
-            self.PIC = fkme.PIC(obs, pred, conf)
+            self.PIC = fkme._PIC(obs, pred, conf)
             self.MPI = fkme.MPI(obs, pred, conf)
             self.PICP = fkme.PICP(obs, pred, conf)
             logger.info('Uncertainty info successfully added to the PTF')

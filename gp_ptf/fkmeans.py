@@ -1,3 +1,5 @@
+"""Module to perform uncertainty assessment."""
+
 import logging
 
 import numpy as np
@@ -8,6 +10,24 @@ logger = logging.getLogger(__name__)
 
 
 def mahalanobis(data, centroids, W):
+    """Calculate the mahalanobis distance between observations and centroids.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        2-dimensional array containing the observations.
+    centroids : np.ndarray
+        2-dimensional `centroids` array. It should have the same number of columns
+        than `data`.
+    W : np.ndarray
+        The inverse of the covariance matrix.
+
+    Returns
+    -------
+    np.ndarray
+        Distance matrix.
+
+    """
     dist = []
     for c in centroids:
         c_rep = np.repeat([c], data.shape[0], 0)
@@ -17,18 +37,34 @@ def mahalanobis(data, centroids, W):
 
 
 def euclidean(data, centroids):
+    """Calculate the euclidean distance between observations and centroids.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        2-dimensional array containing the observations.
+    centroids : np.ndarray
+        2-dimensional `centroids` array. It should have the same number of columns
+        than `data`.
+
+    Returns
+    -------
+    np.ndarray
+        Distance matrix.
+
+    """
     return np.sqrt(np.power([data - np.repeat([c], data.shape[0], 0) for c in centroids], 2).sum(2)).T
 
 
-def calc_dist(data, centroids, W, disttype):
-    if (disttype == 1):  # Euclidean
+def _calc_dist(data, centroids, W, disttype):
+    if (disttype == 'euclidean'):
         dist = euclidean(data, centroids)
     else:  # Diagonal and Mahalanobis
         dist = mahalanobis(data, centroids, W)
     return dist
 
 
-def update_centroids(uphi, uephi, a1, dist, data):
+def _update_centroids(uphi, uephi, a1, dist, data):
     ufi = uphi - (np.full(uphi.shape, a1) * (dist ** (-4)) * np.repeat([uephi], dist.shape[1], 0).T)
     c1 = np.matmul(ufi.T, data)
     t1 = ufi.sum(0)
@@ -37,7 +73,7 @@ def update_centroids(uphi, uephi, a1, dist, data):
     return centroids
 
 
-def calc_membership(dist, phi, a1):
+def _calc_membership(dist, phi, a1):
     nclass = dist.shape[1]
     tmp = dist ** (-2 / (phi - 1))
     tm2 = dist ** (-2)
@@ -50,8 +86,21 @@ def calc_membership(dist, phi, a1):
     return np.abs(U), np.abs(Ue)
 
 
-def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
-                      toldif=0.001, exp_eg=None, optim=False):
+def _fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
+                       toldiff=0.001, exp_eg=None, optim=False):
+    """Run clustering routine.
+
+    This functions in not supposed to be used by itself. It is internally used
+    by :class:`.FKMEx`.
+
+    See :class:`.FKMEx` for a complete list of parameters.
+
+    Parameters
+    ----------
+    optim : bool
+        Whether to run in alpha optimisation mode or clustering mode.
+
+    """
     if exp_eg is None:
         exp_eg = 1 / (1 + nclass)
     Ue_req = exp_eg
@@ -63,15 +112,12 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
     U = np.random.normal(0.5, 0.01, (ndata, nclass))
     U = np.abs(U / U.sum(1).reshape(-1, 1))
 
-    if (disttype == 1):
+    if (disttype == 'euclidean'):
         W = np.identity(ndim)
-        dist_name = 'Euclidean'
-    elif (disttype == 2):
+    elif (disttype == 'diagonal'):
         W = np.identity(ndim) * np.cov(data, rowvar=False)
-        dist_name = 'Diagonal'
-    elif (disttype == 3):
+    elif (disttype == 'mahalanobis'):
         W = np.linalg.inv(np.cov(data, rowvar=False))
-        dist_name = 'Mahalanobis'
 
     obj = 0
 
@@ -87,20 +133,20 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
     t1 = np.repeat([t1], ndim, 0).T
     centroids = c1 / t1
 
-    dist = calc_dist(data, centroids, W, disttype)
+    dist = _calc_dist(data, centroids, W, disttype)
 
     for i in range(1, maxiter + 1):
         # Calculate centroids
-        centroids = update_centroids(uphi, uephi, a1, dist, data)
+        centroids = _update_centroids(uphi, uephi, a1, dist, data)
 
-        dist = calc_dist(data, centroids, W, disttype)
+        dist = _calc_dist(data, centroids, W, disttype)
 
         # Save previous iteration
         U_old = U.copy()
         obj_old = obj
 
         # Calculate new membership matrix
-        U, Ue = calc_membership(dist, phi, a1)
+        U, Ue = _calc_membership(dist, phi, a1)
         uphi = U ** phi
         uephi = Ue ** phi
 
@@ -115,11 +161,11 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
 #         difU = np.sqrt((U - U_old) * (U - U_old))
         difU = np.abs(U - U_old)
         Udif = difU.sum()
-        if (dif < toldif) and (Udif < toldif):
+        if (dif < toldiff) and (Udif < toldiff):
             break
 
     # Update centroids
-    centroids = update_centroids(uphi, uephi, a1, dist, data)
+    centroids = _update_centroids(uphi, uephi, a1, dist, data)
 
     U_end = np.concatenate([U, Ue.reshape(-1, 1)], 1)
 
@@ -143,14 +189,57 @@ def fuzzy_extragrades(data, alpha, phi, nclass, disttype, maxiter=300,
 
 
 class FKMEx(object):
-    def __init__(self, nclass, phi, disttype, exp_eg=None, maxiter=300,
-                 toldif=0.001, alpha=None):
+    """Fuzzy k-means with extragrades.
+
+    Parameters
+    ----------
+    nclass : int
+        Number of cluster to generate.
+    phi : float
+        Degree of fuzziness or overlap of the generated clusters.
+        Usually in the range [1, 2].
+    disttype : {'euclidean', 'diagonal', 'mahalanobis'}
+        Type of distance (the default is 'mahalanobis').
+    exp_eg : float
+        The expected fraction of extragrades. If not provided, it is assumed to
+        be dependant on the number of clusters (1 / (1 + nclass)).
+    maxiter : int
+        Maximum number of iterations (the default is 300).
+    toldiff : float
+        Minimum difference to converge (the default is 0.001).
+    alpha : float
+        Mean membership of the extragrade class (the default is None).
+        This parameter is usually obtained by optimisation. See :func:`FKMEx.fit`.
+        Once obtained by optimisation, it can be provided to skip the optimisation.
+
+    Attributes
+    ----------
+    centroids : np.ndarray
+        Coordinates of the centroids.
+    U : np.ndarray
+        Memebership matrix with shape (number_obs, nclass + 1).
+        The last com
+    W : np.ndarray
+        The inverse of the data covariance matrix.
+    fitted : bool
+        True if the :func:`FKMEx.fit` method has been called.
+    phi
+    nclass
+    disttype
+    exp_eg
+    maxiter
+    toldiff
+    alpha
+
+    """
+    def __init__(self, nclass, phi, disttype='mahalanobis', exp_eg=None,
+                 maxiter=300, toldiff=0.001, alpha=None):
         self.phi = phi
         self.nclass = nclass
         self.disttype = disttype
         self.exp_eg = exp_eg
         self.maxiter = maxiter
-        self.toldif = toldif
+        self.toldiff = toldiff
         self.centroids = None
         self.U = None
         self.W = None
@@ -158,6 +247,27 @@ class FKMEx(object):
         self.fitted = False
 
     def fit(self, data, min_alpha=None, **kwargs):
+        """Run the fuzzy k-means with extragrades algorithm.
+
+        Parameters
+        ----------
+        data : np.ndarray or :class:`~.ptf.PTF`
+            Data to cluster.
+        min_alpha : float
+            The optimisation finds the optimal alpha value in the range [`min_alpha`, 1].
+            If None (the default) the search range is [0, 1].
+            When a series of consecutive number of clusters are run (i.e.: nclass=2; nclass=3, etc.),
+            the first FKMEx should search in the range [0, 1] and the next one in the range
+            [min_alpha=optim_alpha_previous, 1].
+        **kwargs :
+            Parameters passed to the :func:`~.optim.optim_alpha` function.
+
+        Returns
+        -------
+        FKMEx
+            Fitted self.
+
+        """
         if isinstance(data, PTF):
             try:
                 data = data.cleaned_data[data.xs].values
@@ -175,9 +285,9 @@ class FKMEx(object):
             alpha = self.alpha
             logger.info('Skipping alpha optimisation')
             logger.info('Using provided alpha: {}'.format(alpha))
-        U, centroids, W = fuzzy_extragrades(data, alpha, self.phi,
-                                            self.nclass, self.disttype,
-                                            optim=False, **kwargs)
+        U, centroids, W = _fuzzy_extragrades(data, alpha, self.phi,
+                                             self.nclass, self.disttype,
+                                             optim=False, **kwargs)
         self.centroids = centroids
         self.U = U
         self.W = W
@@ -186,18 +296,45 @@ class FKMEx(object):
         return self
 
     def dist(self, data):
+        """Calculate the distance between data and the class centroids.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            2-dimensional array containing the observations.
+
+        Returns
+        -------
+        np.ndarray
+            Distance matrix.
+
+        """
         if self.fitted:
-            return calc_dist(data, self.centroids, self.W, self.disttype)
+            return _calc_dist(data, self.centroids, self.W, self.disttype)
 
     def membership(self, data):
+        """Calculate the membership to each class.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            2-dimensional array containing the observations.
+
+        Returns
+        -------
+        np.ndarray
+            Memebership matrix.
+
+        """
         if self.fitted:
             dist = self.dist(data)
             a1 = (1 - self.alpha) / self.alpha
-            U, Ue = calc_membership(dist, self.phi, a1)
+            U, Ue = _calc_membership(dist, self.phi, a1)
             return np.concatenate([U, Ue.reshape(-1, 1)], 1)
 
     @property
     def hard_clusters(self):
+        """Defuzzified classes."""
         if self.fitted:
             ks = self.U.argmax(1) + 1
             eg = ks.max()
@@ -205,7 +342,7 @@ class FKMEx(object):
             ks[ks == str(eg)] = 'Eg'
             return ks
 
-    def PIC(self, y_true, y_pred, conf=0.95):
+    def _PIC(self, y_true, y_pred, conf=0.95):
         hard = self.hard_clusters
         ks = np.unique(hard)
         alpha = 100 - conf * 100
@@ -221,18 +358,69 @@ class FKMEx(object):
         return perc
 
     def prediction_limits(self, y_true, y_pred, conf=0.95):
-        perc = self.PIC(y_true, y_pred, conf)
+        """Calculate prediction limits.
+
+        Parameters
+        ----------
+        y_true : np.ndarray
+            Observed values of the target variable.
+        y_pred : np.ndarray
+            Predicted values of the target variable.
+        conf : float
+            Confidence level used when estimimating the prediction_interval (the default is 0.95).
+
+        Returns
+        -------
+        np.ndarray
+            Prediction limits (`y_pred` ± uncertainty).
+
+        """
+        perc = self._PIC(y_true, y_pred, conf)
         PI = np.matmul(self.U, perc)
         PL = PI + y_pred.reshape(-1, 1)
         return PL
 
     def PICP(self, y_true, y_pred, conf=0.95):
+        """Calculate prediction interval coverage probability.
+
+        Parameters
+        ----------
+        y_true : np.ndarray
+            Observed values of the target variable.
+        y_pred : np.ndarray
+            Predicted values of the target variable.
+        conf : float
+            Confidence level used when estimimating the prediction_interval (the default is 0.95).
+
+        Returns
+        -------
+        float
+            Prediction interval coverage probability.
+
+        """
         PL = self.prediction_limits(y_true, y_pred, conf)
         PICP_count = np.bitwise_and(y_true >= PL[:, 0], y_true <= PL[:, 1])
         PICP = 100 * PICP_count.sum() / len(y_true)
         return PICP
 
     def MPI(self, y_true, y_pred, conf=0.95):
+        """Calcululate mean prediction interval.
+
+        Parameters
+        ----------
+        y_true : np.ndarray
+            Observed values of the target variable.
+        y_pred : np.ndarray
+            Predicted values of the target variable.
+        conf : float
+            Confidence level used when estimimating the prediction_interval (the default is 0.95).
+
+        Returns
+        -------
+        float
+            Mean prediction interval.
+
+        """
         PL = self.prediction_limits(y_true, y_pred, conf)
         MPI = (PL[:, 1] - PL[:, 0]).sum() / len(y_true)
         return MPI

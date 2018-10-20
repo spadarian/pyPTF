@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from gp_ptf.fkmeans import calc_dist, calc_membership, update_centroids, FKMEx
+from gp_ptf.fkmeans import _calc_dist, _calc_membership, _update_centroids, FKMEx
 
 d = np.array([[0, 2], [1, 1], [2.5, 0]])
 dist_euc = np.array([
@@ -28,29 +28,35 @@ def test_distances():
     ])
     W_mah = np.linalg.inv(np.cov(d, rowvar=False))
     W_euc = np.identity(d.shape[1])
-    assert np.isclose(calc_dist(d, centroids, W_euc, 1), dist_euc).all()
-    assert np.isclose(calc_dist(d, centroids, W_mah, 3), dist_mah).all()
+    assert np.isclose(_calc_dist(d, centroids, W_euc, 'euclidean'), dist_euc).all()
+    assert np.isclose(_calc_dist(d, centroids, W_mah, 'mahalanobis'), dist_mah).all()
 
 
 def test_update_centroids():
-    U, Ue = calc_membership(dist_mah, phi, a1)
+    U, Ue = _calc_membership(dist_mah, phi, a1)
     Uphi = U ** phi
     Uephi = Ue ** phi
-    assert np.isclose(update_centroids(Uphi, Uephi, a1, dist_mah, d),
+    assert np.isclose(_update_centroids(Uphi, Uephi, a1, dist_mah, d),
                       np.array([[1.16678848, 1.00002121], [1.17421676, 0.9296254]])).all()
 
 
+def test_cluster_with_distances():
+    FKMEx(2, 1.5, 'euclidean', alpha=0.755067750159772).fit(d)
+    FKMEx(2, 1.5, 'diagonal', alpha=0.755067750159772).fit(d)
+
+
 def test_integration():
-    k2 = FKMEx(2, 1.5, 3, alpha=alpha)
+    np.random.seed(0)
+    k2 = FKMEx(2, 1.5, 'mahalanobis', alpha=alpha)
     k2.fit(d)
 
-    PIC = k2.PIC(np.array([0., 1, 1]), np.array([0., 0, 0]))
+    PIC = k2._PIC(np.array([0., 1, 1]), np.array([0., 0, 0]))
     assert np.isclose(PIC,
                       [[0.025, 0.975], [2, 2]]).all()
 
 
 def test_repr():
-    k2 = FKMEx(2, 1.5, 3, alpha=alpha)
-    assert repr(k2) == '<FKMEx classes=2 phi=1.5 dist=3>'
+    k2 = FKMEx(2, 1.5, 'mahalanobis', alpha=alpha)
+    assert repr(k2) == '<FKMEx classes=2 phi=1.5 dist=mahalanobis>'
     k2.fit(d)
-    assert repr(k2) == '<FKMEx (fitted) classes=2 phi=1.5 dist=3>'
+    assert repr(k2) == '<FKMEx (fitted) classes=2 phi=1.5 dist=mahalanobis>'
