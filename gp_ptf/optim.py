@@ -10,7 +10,7 @@ import multiprocessing
 import numpy as np
 import pygmo as pg
 
-from gp_ptf.fkmeans import _fuzzy_extragrades
+from .fkmeans import _fuzzy_extragrades
 
 logger = logging.getLogger(__name__)
 

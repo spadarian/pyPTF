@@ -6,7 +6,10 @@ import numpy as np
 from scipy.stats import linregress
 from gplearn.genetic import SymbolicRegressor
 from gplearn._program import _Program
-from sympy import symbols, simplify, latex, Float, preorder_traversal
+from sympy import (symbols, simplify, latex, Float, preorder_traversal, sympify,
+                   sin, cos, tan, Abs, Max, Min, Mul)
+
+from .symb_functions import div, sub, add, inv
 
 logger = logging.getLogger(__name__)
 
@@ -166,22 +169,28 @@ class PTF(object):
 
     def to_symb(self, program):
         """Convert a gplearn program to sympy expression."""
-        # TODO: Find a better way to do this
-        from gp_ptf.symb_functions import div, sub, add, inv
-        from sympy import sin, cos, tan
-        from sympy import Abs as abs
-        from sympy import Max as max
-        from sympy import Min as min
-        from sympy import Mul as mul
         neg = np.negative
 
-        expressions = ["X{} = symbols('{}')".format(i, sym)
-                       for i, sym in enumerate(self.xs)
-                       if 'X{}'.format(i) in str(program)]
-        for ex in expressions:
-            exec(ex)
+        locals = {
+            'sin': sin,
+            'cos': cos,
+            'tan': tan,
+            'abs': Abs,
+            'max': Max,
+            'min': Min,
+            'mul': Mul,
+            'neg': neg,
+            'div': div,
+            'sub': sub,
+            'add': add,
+            'inv': inv,
+        }
 
-        ptf = eval(str(program))
+        expressions = {"X{}".format(i): symbols(sym)
+                       for i, sym in enumerate(self.xs)
+                       if 'X{}'.format(i) in str(program)}
+        locals.update(expressions)
+        ptf = sympify(str(program), locals=locals)
         return ptf
 
     def simplify_program(self, program):

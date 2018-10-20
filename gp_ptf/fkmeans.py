@@ -4,7 +4,7 @@ import logging
 
 import numpy as np
 
-from gp_ptf.ptf import PTF
+from .ptf import PTF
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +274,7 @@ class FKMEx(object):
             except Exception:
                 raise Exception('There was a problem trying to use the provided PTF')
         if self.alpha is None:
-            from gp_ptf.optim import optim_alpha
+            from .optim import optim_alpha
             alpha = optim_alpha(data,
                                 self.phi,
                                 self.nclass,

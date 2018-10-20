@@ -11,7 +11,7 @@ def find_optim_cluster(fitted_fkme, y_true, y_pred, conf=0.95):
     Parameters
     ----------
     fitted_fkme : list
-        gp_ptf.fkmeans.FKMEx object to plot
+        :class:`~.fkmeans.FKMEx` objects to plot.
     y_true : np.ndarray
         Observed values of the target variable.
     y_pred : np.ndarray
@@ -113,7 +113,7 @@ def summary(ptf, nan_rep='--', decimals=2):
     Returns
     -------
     str
-        LaTeX table
+        LaTeX table.
 
     """
     n_props = ptf.uncertainty.centroids.shape[1]
