@@ -76,7 +76,7 @@ def extragrade_limit(ptf, k):
         Z = z.reshape(X.shape)
         return X, Y, Z
 
-    X, Y, Z = gen_grid(m, k)
+    X, Y, Z = gen_grid(ptf, k)
 
     eg_limit = 1.0 / (k.nclass + 1)
 
