@@ -1,4 +1,5 @@
 # Welcome to pyPTF!
+[![Build Status](https://travis-ci.org/spadarian/pyPTF.svg?branch=master)](https://travis-ci.org/spadarian/pyPTF)
 
 This is a framework to develop [pedotransfer functions](https://en.wikipedia.org/wiki/Pedotransfer_function) using genetic programming.
 
