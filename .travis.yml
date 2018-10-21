@@ -4,6 +4,7 @@ python:
   - "3.5"
   - "3.6"
 install:
-  - pip install gplearn==0.3.0 sympy==1.2 pygmo==2.9 pandas==0.23.4
+  - pip install gplearn==0.3.0 sympy==1.2 pygmo>=2.8 pandas>=0.22
+  - pip install .
 script:
   - pytest
