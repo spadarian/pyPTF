@@ -1,6 +1,10 @@
 # Welcome to pyPTF!
 [![Build Status](https://travis-ci.org/spadarian/pyPTF.svg?branch=master)](https://travis-ci.org/spadarian/pyPTF)
 
+| :warning: WARNING :warning:                                             |
+|:-----------------------------------------------------------------------:|
+| This repository has been migrated to https://gitlab.com/spadarian/pyPTF |
+
 This is a framework to develop [pedotransfer functions](https://en.wikipedia.org/wiki/Pedotransfer_function) using genetic programming.
 
 A pedotransfer function is a model to predict soil properties based on other, easier to measure, soil properties. Traditionally, pedotransfer functions are represented as expressions (formulas) and that is why [symbolic regression](https://en.wikipedia.org/wiki/Symbolic_regression) is a great alternative to develop them.
